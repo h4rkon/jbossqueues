@@ -13,16 +13,26 @@ The deliverable is written to `target/jbossqueues.war`.
 ## Docker image
 
 ```sh
-make docker-build IMAGE_OWNER=<github-owner-or-org> IMAGE_TAG=0.1.0
+make docker-build
 ```
 
 By default the image name is:
 
 ```text
-ghcr.io/hzd/jbossqueues:local
+ghcr.io/h4rkon/jbossqueues:<VERSION>
 ```
 
-Override `IMAGE_REGISTRY`, `IMAGE_OWNER`, `IMAGE_TAG`, or `IMAGE` when building for another registry.
+The image tag is read from `VERSION`. Override `IMAGE_REGISTRY`, `IMAGE_OWNER`,
+`VERSION`, `IMAGE_TAG`, or `IMAGE` when building for another registry or tag.
+
+For a new rollout version:
+
+```sh
+make bump-version
+make print-image
+make docker-build
+make docker-push
+```
 
 ## Push
 
@@ -47,8 +57,8 @@ Do not commit `.secret/`. The folder is ignored by Git.
 Build and push the exact image name that your Kubernetes deployment will use:
 
 ```sh
-make docker-build IMAGE_OWNER=<github-owner-or-org> IMAGE_TAG=0.1.0
-make docker-push IMAGE_OWNER=<github-owner-or-org> IMAGE_TAG=0.1.0
+make docker-build
+make docker-push
 ```
 
 If push fails with `permission_denied: create_package`, the token is valid but
@@ -59,7 +69,7 @@ permission in the GitHub organization.
 To confirm the full image name before pushing:
 
 ```sh
-make print-image IMAGE_OWNER=<github-owner-or-org> IMAGE_TAG=0.1.0
+make print-image
 ```
 
 ## Run locally
@@ -67,4 +77,7 @@ make print-image IMAGE_OWNER=<github-owner-or-org> IMAGE_TAG=0.1.0
 ```sh
 make run
 curl http://localhost:8080/api/messages
+curl -X POST http://localhost:8080/api/messages \
+  -H 'Content-Type: application/json' \
+  -d '{"key":"sauermann","value":"5"}'
 ```

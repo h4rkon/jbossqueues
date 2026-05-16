@@ -1,14 +1,24 @@
 APP_NAME ?= jbossqueues
 IMAGE_REGISTRY ?= ghcr.io
 IMAGE_OWNER ?= h4rkon
-IMAGE_TAG ?= local
+VERSION_FILE ?= VERSION
+VERSION ?= $(shell cat $(VERSION_FILE))
+IMAGE_TAG ?= $(VERSION)
 IMAGE ?= $(IMAGE_REGISTRY)/$(IMAGE_OWNER)/$(APP_NAME):$(IMAGE_TAG)
 GHCR_USER ?= $(IMAGE_OWNER)
 GHCR_TOKEN_FILE ?= .secret/.gitpat
 MAVEN ?= mvn
 DOCKER ?= docker
 
-.PHONY: clean package docker-build docker-login docker-push print-image run
+.PHONY: bump-version clean package docker-build docker-login docker-push print-image print-version run
+
+print-version:
+	@echo $(VERSION)
+
+bump-version:
+	@next=$$(expr $$(cat "$(VERSION_FILE)") + 1); \
+	printf '%s\n' "$$next" > "$(VERSION_FILE)"; \
+	echo "$$next"
 
 clean:
 	$(MAVEN) clean
