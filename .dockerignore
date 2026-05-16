@@ -1,0 +1,8 @@
+.git
+.idea
+.vscode
+*.iml
+.DS_Store
+
+target/*
+!target/jbossqueues.war
