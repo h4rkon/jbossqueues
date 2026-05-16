@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wildfly-kafka
+  labels:
+    app.kubernetes.io/name: wildfly-kafka
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: wildfly-kafka
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wildfly-kafka-config
+data:
+  KAFKA_BOOTSTRAP_SERVERS: kafka.kafka.svc.cluster.local:9092
+  KAFKA_TOPIC: jboss-demo
+  KAFKA_GROUP_ID: wildfly-demo
+
