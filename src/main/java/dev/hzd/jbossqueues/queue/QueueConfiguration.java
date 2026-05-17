@@ -8,5 +8,15 @@ public interface QueueConfiguration {
 
     String topic();
 
+    String deadLetterTopic();
+
     String consumerGroup();
+
+    int maxConsumerAttempts();
+
+    long retryBackoffMillis();
+
+    int circuitBreakerFailureThreshold();
+
+    long circuitBreakerOpenMillis();
 }

@@ -4,6 +4,7 @@ import dev.hzd.jbossqueues.MessagePayload;
 import dev.hzd.jbossqueues.queue.AbstractMessageConsumer;
 import dev.hzd.jbossqueues.queue.MessageConsumer;
 import dev.hzd.jbossqueues.queue.QueueConfiguration;
+import dev.hzd.jbossqueues.queue.Retry;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.annotation.Resource;
@@ -30,6 +31,9 @@ public class KafkaMessageConsumer extends AbstractMessageConsumer<MessagePayload
 
     @Inject
     private QueueConfiguration configuration;
+
+    @Inject
+    private KafkaMessagePublisher publisher;
 
     @Resource
     private ManagedExecutorService executorService;
@@ -75,7 +79,7 @@ public class KafkaMessageConsumer extends AbstractMessageConsumer<MessagePayload
                 for (ConsumerRecord<String, String> record : consumer.poll(Duration.ofSeconds(1))) {
                     logger().info(() -> "Consumed Kafka message from %s-%d offset %d key=%s value=%s"
                             .formatted(record.topic(), record.partition(), record.offset(), record.key(), record.value()));
-                    onMessage(MessagePayload.fromJson(record.value()));
+                    consumeRecord(record);
                 }
             }
         } catch (WakeupException exception) {
@@ -91,6 +95,19 @@ public class KafkaMessageConsumer extends AbstractMessageConsumer<MessagePayload
         }
     }
 
+    private void consumeRecord(ConsumerRecord<String, String> record) {
+        try {
+            Retry.run(
+                    "consume Kafka message",
+                    configuration.maxConsumerAttempts(),
+                    configuration.retryBackoffMillis(),
+                    attempt -> onMessage(MessagePayload.fromJson(record.value())));
+        } catch (RuntimeException exception) {
+            logger().log(Level.SEVERE, "Kafka message failed after retries; sending to DLQ", exception);
+            publisher.publishDeadLetter(record.key(), record.value(), exception);
+        }
+    }
+
     private Properties consumerProperties() {
         Properties properties = new Properties();
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, configuration.bootstrapServers());
@@ -99,6 +116,7 @@ public class KafkaMessageConsumer extends AbstractMessageConsumer<MessagePayload
         properties.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
+        properties.put(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG, configuration.retryBackoffMillis());
         return properties;
     }
 }
