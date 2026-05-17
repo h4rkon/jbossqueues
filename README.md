@@ -94,6 +94,10 @@ KAFKA_TOPIC_MESSAGES=jbossqueues.messages
 KAFKA_TOPIC_MESSAGES_DLQ=jbossqueues.messages.dlq
 ```
 
+The Kubernetes deployment should set all three variables explicitly. The DLQ
+topic is also the configured SmallRye fallback default, but setting the env var
+makes the platform contract visible.
+
 The app publishes every `POST /api/messages` payload to Kafka and runs a
 Reactive Messaging consumer in the same WildFly deployment.
 
