@@ -1,5 +1,7 @@
 package dev.hzd.jbossqueues;
 
+import dev.hzd.jbossqueues.queue.MessagePublisher;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Consumes;
@@ -15,6 +17,9 @@ import java.util.logging.Logger;
 public class MessageResource {
     private static final Logger LOGGER = Logger.getLogger(MessageResource.class.getName());
 
+    @Inject
+    private MessagePublisher<MessagePayload> messagePublisher;
+
     @GET
     public Response list() {
         return Response.ok("[]").build();
@@ -29,7 +34,7 @@ public class MessageResource {
         }
 
         LOGGER.info(() -> "Received HTTP message payload: " + payload.toJson());
-        KafkaMessageBridge.publish(payload);
+        messagePublisher.publish(payload);
         return Response.ok(payload).build();
     }
 }

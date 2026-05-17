@@ -24,7 +24,7 @@ clean:
 	$(MAVEN) clean
 
 package:
-	$(MAVEN) package
+	$(MAVEN) clean package
 
 docker-build: package
 	$(DOCKER) build --pull -t $(IMAGE) .
