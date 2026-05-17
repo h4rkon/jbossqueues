@@ -81,3 +81,16 @@ curl -X POST http://localhost:8080/api/messages \
   -H 'Content-Type: application/json' \
   -d '{"key":"sauermann","value":"5"}'
 ```
+
+## Kafka
+
+Kafka is enabled when these environment variables are present:
+
+```text
+KAFKA_BOOTSTRAP_SERVERS=kafka.kafka.svc.cluster.local:9092
+KAFKA_TOPIC_MESSAGES=jbossqueues.messages
+```
+
+The app publishes every `POST /api/messages` payload to Kafka and runs a
+background consumer in the same WildFly deployment. If the variables are absent,
+the HTTP endpoint still works and Kafka is skipped.

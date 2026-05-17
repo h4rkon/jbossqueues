@@ -22,8 +22,14 @@ public class MessageResource {
 
     @POST
     public Response create(MessagePayload payload) {
-        LOGGER.info(() -> "Received message payload: {\"key\":\"%s\",\"value\":\"%s\"}"
-                .formatted(payload.key(), payload.value()));
+        if (payload == null || payload.key() == null || payload.value() == null) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("{\"error\":\"Payload must contain key and value\"}")
+                    .build();
+        }
+
+        LOGGER.info(() -> "Received HTTP message payload: " + payload.toJson());
+        KafkaMessageBridge.publish(payload);
         return Response.ok(payload).build();
     }
 }
