@@ -3,44 +3,4 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
          version="6.0">
-    <env-entry>
-        <env-entry-name>kafka/bootstrapServers</env-entry-name>
-        <env-entry-type>java.lang.String</env-entry-type>
-        <env-entry-value>${env.KAFKA_BOOTSTRAP_SERVERS}</env-entry-value>
-    </env-entry>
-    <env-entry>
-        <env-entry-name>kafka/topicMessages</env-entry-name>
-        <env-entry-type>java.lang.String</env-entry-type>
-        <env-entry-value>${env.KAFKA_TOPIC_MESSAGES}</env-entry-value>
-    </env-entry>
-    <env-entry>
-        <env-entry-name>kafka/topicMessagesDlq</env-entry-name>
-        <env-entry-type>java.lang.String</env-entry-type>
-        <env-entry-value>${env.KAFKA_TOPIC_MESSAGES_DLQ}</env-entry-value>
-    </env-entry>
-    <env-entry>
-        <env-entry-name>kafka/consumerGroup</env-entry-name>
-        <env-entry-type>java.lang.String</env-entry-type>
-        <env-entry-value>${env.KAFKA_CONSUMER_GROUP}</env-entry-value>
-    </env-entry>
-    <env-entry>
-        <env-entry-name>queue/maxConsumerAttempts</env-entry-name>
-        <env-entry-type>java.lang.String</env-entry-type>
-        <env-entry-value>${env.QUEUE_MAX_CONSUMER_ATTEMPTS}</env-entry-value>
-    </env-entry>
-    <env-entry>
-        <env-entry-name>queue/retryBackoffMillis</env-entry-name>
-        <env-entry-type>java.lang.String</env-entry-type>
-        <env-entry-value>${env.QUEUE_RETRY_BACKOFF_MILLIS}</env-entry-value>
-    </env-entry>
-    <env-entry>
-        <env-entry-name>queue/circuitFailureThreshold</env-entry-name>
-        <env-entry-type>java.lang.String</env-entry-type>
-        <env-entry-value>${env.QUEUE_CIRCUIT_FAILURE_THRESHOLD}</env-entry-value>
-    </env-entry>
-    <env-entry>
-        <env-entry-name>queue/circuitOpenMillis</env-entry-name>
-        <env-entry-type>java.lang.String</env-entry-type>
-        <env-entry-value>${env.QUEUE_CIRCUIT_OPEN_MILLIS}</env-entry-value>
-    </env-entry>
 </web-app>

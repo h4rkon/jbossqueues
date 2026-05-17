@@ -82,10 +82,11 @@ curl -X POST http://localhost:8080/api/messages \
   -d '{"key":"sauermann","value":"5"}'
 ```
 
-## Kafka
+## Reactive Messaging
 
-Kafka configuration is declared as JNDI environment entries in `WEB-INF/web.xml`.
-Kafka is enabled when these environment variables are present:
+Kafka is configured through MicroProfile Config (https://docs.wildfly.org/quickstart/microprofile-reactive-messaging-kafka/README.html) in
+`META-INF/microprofile-config.properties`. These environment variables are used
+by the channel configuration:
 
 ```text
 KAFKA_BOOTSTRAP_SERVERS=kafka.kafka.svc.cluster.local:9092
@@ -94,21 +95,13 @@ KAFKA_TOPIC_MESSAGES_DLQ=jbossqueues.messages.dlq
 ```
 
 The app publishes every `POST /api/messages` payload to Kafka and runs a
-background consumer in the same WildFly deployment. If the variables are absent,
-the HTTP endpoint still works and Kafka is skipped.
+Reactive Messaging consumer in the same WildFly deployment.
 
-Resilience settings are also exposed through `WEB-INF/web.xml` JNDI env entries
-and can be overridden by environment variables:
+Resilience is handled by MicroProfile/SmallRye:
 
-```text
-QUEUE_MAX_CONSUMER_ATTEMPTS=3
-QUEUE_RETRY_BACKOFF_MILLIS=500
-QUEUE_CIRCUIT_FAILURE_THRESHOLD=5
-QUEUE_CIRCUIT_OPEN_MILLIS=10000
-```
-
-The producer uses Kafka client retries and a simple circuit breaker. The
-consumer retries message handling and publishes failed records to the DLQ topic.
+- producer retry/circuit breaker: MicroProfile Fault Tolerance annotations
+- Kafka retry: SmallRye Kafka connector properties
+- consumer DLQ: SmallRye Kafka `dead-letter-queue` failure strategy
 
 ### Runtime Flow
 
@@ -119,11 +112,10 @@ sequenceDiagram
     participant WildFly as WildFly/JBoss
     participant Resource as MessageResource
     participant Publisher as MessagePublisher<MessagePayload>
-    participant KafkaPublisher as KafkaMessagePublisher
-    participant Circuit as CircuitBreaker
+    participant ReactivePublisher as ReactiveMessagePublisher
+    participant Emitter as MP Reactive Messaging Emitter
     participant Kafka as Kafka topic<br/>jbossqueues.messages
-    participant KafkaConsumer as KafkaMessageConsumer
-    participant Retry as Retry
+    participant ReactiveConsumer as ReactiveMessageConsumer
     participant DLQ as Kafka DLQ topic<br/>jbossqueues.messages.dlq
     participant Logs as WildFly stdout
 
@@ -131,26 +123,17 @@ sequenceDiagram
     WildFly->>Resource: Dispatch JAX-RS request
     Resource->>Logs: Log HTTP payload
     Resource->>Publisher: publish(MessagePayload)
-    Publisher->>KafkaPublisher: CDI resolves Kafka implementation
-    KafkaPublisher->>Circuit: allowRequest()
-    alt circuit closed or half-open
-        KafkaPublisher->>Kafka: Produce JSON message<br/>key=sauermann
-        KafkaPublisher->>Circuit: recordSuccess()
-        KafkaPublisher->>Logs: Log produced topic/partition/offset
-    else circuit open
-        KafkaPublisher->>Logs: Log skipped Kafka publish
-    end
+    Publisher->>ReactivePublisher: CDI resolves Reactive Messaging implementation
+    ReactivePublisher->>Emitter: send JSON to channel messages-out
+    Emitter->>Kafka: SmallRye Kafka connector writes record
+    ReactivePublisher->>Logs: Log published payload
     Resource-->>Client: 200 OK<br/>echo payload
-    KafkaConsumer->>Kafka: Poll topic in background
-    Kafka-->>KafkaConsumer: ConsumerRecord
-    KafkaConsumer->>Retry: run consume attempts
+    Kafka-->>ReactiveConsumer: channel messages-in receives JSON
     alt consume succeeds
-        Retry->>KafkaConsumer: MessagePayload.fromJson(record.value)
-        KafkaConsumer->>Logs: Log consumed payload
+        ReactiveConsumer->>ReactiveConsumer: MessagePayload.fromJson(json)
+        ReactiveConsumer->>Logs: Log consumed payload
     else consume fails after retries
-        KafkaConsumer->>KafkaPublisher: publishDeadLetter(record)
-        KafkaPublisher->>DLQ: Produce failed record with error header
-        KafkaPublisher->>Logs: Log DLQ offset/reason
+        ReactiveConsumer-->>DLQ: connector sends failed record to DLQ
     end
 ```
 
@@ -164,8 +147,8 @@ classDiagram
         <<container>>
         creates JAX-RS resources
         creates CDI beans
-        creates EJB singletons
-        injects JNDI env entries
+        enables reactive messaging subsystem
+        enables fault tolerance subsystem
     }
 
     class MessageResource {
@@ -192,19 +175,6 @@ classDiagram
         +onMessage(T message)
     }
 
-    class QueueConfiguration {
-        <<interface>>
-        +enabled() boolean
-        +bootstrapServers() String
-        +topic() String
-        +consumerGroup() String
-        +deadLetterTopic() String
-        +maxConsumerAttempts() int
-        +retryBackoffMillis() long
-        +circuitBreakerFailureThreshold() int
-        +circuitBreakerOpenMillis() long
-    }
-
     class AbstractMessagePublisher~T~ {
         <<abstract>>
         #logger() Logger
@@ -215,75 +185,55 @@ classDiagram
         #logger() Logger
     }
 
-    class KafkaMessagePublisher {
+    class ReactiveMessagePublisher {
         <<CDI ApplicationScoped>>
-        -QueueConfiguration configuration
-        -KafkaProducer producer
-        -CircuitBreaker circuitBreaker
+        -Emitter<String> emitter
         +publish(MessagePayload)
-        +publishDeadLetter(String, String, Exception)
-        +start()
-        +stop()
+        @Retry
+        @CircuitBreaker
     }
 
-    class KafkaMessageConsumer {
-        <<EJB Singleton Startup>>
-        -QueueConfiguration configuration
-        -ManagedExecutorService executorService
-        -KafkaConsumer consumer
+    class ReactiveMessageConsumer {
+        <<CDI ApplicationScoped>>
+        +consume(String)
         +onMessage(MessagePayload)
-        +start()
-        +stop()
+        @Incoming messages-in
     }
 
-    class KafkaQueueConfiguration {
-        <<EJB Singleton>>
-        -String bootstrapServers
-        -String topicMessages
-        -String topicMessagesDlq
-        -String consumerGroup
+    class MicroProfileConfig {
+        <<META-INF/microprofile-config.properties>>
+        mp.messaging.outgoing.messages-out
+        mp.messaging.incoming.messages-in
+        dead-letter-queue
     }
 
-    class CircuitBreaker {
-        +allowRequest() boolean
-        +recordSuccess()
-        +recordFailure()
+    class ReactiveMessagingRuntime {
+        <<WildFly SmallRye>>
+        channel messages-out
+        channel messages-in
+        Kafka connector
     }
 
-    class Retry {
-        +run(String, int, long, Retryable)
-    }
-
-    class WebXml {
-        <<WEB-INF/web.xml>>
-        env-entry kafka/bootstrapServers
-        env-entry kafka/topicMessages
-        env-entry kafka/topicMessagesDlq
-        env-entry kafka/consumerGroup
-        env-entry queue/maxConsumerAttempts
-        env-entry queue/retryBackoffMillis
-        env-entry queue/circuitFailureThreshold
-        env-entry queue/circuitOpenMillis
+    class FaultToleranceRuntime {
+        <<WildFly SmallRye>>
+        @Retry
+        @CircuitBreaker
     }
 
     WildFlyContainer ..> MessageResource : creates
-    WildFlyContainer ..> KafkaMessagePublisher : creates CDI bean
-    WildFlyContainer ..> KafkaMessageConsumer : starts EJB
-    WildFlyContainer ..> KafkaQueueConfiguration : creates EJB
-    WildFlyContainer ..> WebXml : reads
+    WildFlyContainer ..> ReactiveMessagePublisher : creates CDI bean
+    WildFlyContainer ..> ReactiveMessageConsumer : creates CDI bean
+    WildFlyContainer ..> ReactiveMessagingRuntime : starts
+    WildFlyContainer ..> FaultToleranceRuntime : starts
+    MicroProfileConfig ..> ReactiveMessagingRuntime : configures channels
 
     MessageResource --> MessagePublisher~MessagePayload~ : @Inject
-    KafkaMessagePublisher ..|> MessagePublisher~MessagePayload~
-    KafkaMessagePublisher --|> AbstractMessagePublisher~MessagePayload~
+    ReactiveMessagePublisher ..|> MessagePublisher~MessagePayload~
+    ReactiveMessagePublisher --|> AbstractMessagePublisher~MessagePayload~
+    ReactiveMessagePublisher --> ReactiveMessagingRuntime : @Channel messages-out
+    ReactiveMessagePublisher --> FaultToleranceRuntime : annotations
 
-    KafkaMessageConsumer ..|> MessageConsumer~MessagePayload~
-    KafkaMessageConsumer --|> AbstractMessageConsumer~MessagePayload~
-
-    KafkaMessagePublisher --> QueueConfiguration : @Inject
-    KafkaMessagePublisher --> CircuitBreaker : creates
-    KafkaMessageConsumer --> QueueConfiguration : @Inject
-    KafkaMessageConsumer --> Retry : uses
-    KafkaMessageConsumer --> KafkaMessagePublisher : @Inject for DLQ
-    KafkaQueueConfiguration ..|> QueueConfiguration
-    WebXml ..> KafkaQueueConfiguration : @Resource env-entry
+    ReactiveMessageConsumer ..|> MessageConsumer~MessagePayload~
+    ReactiveMessageConsumer --|> AbstractMessageConsumer~MessagePayload~
+    ReactiveMessagingRuntime --> ReactiveMessageConsumer : @Incoming messages-in
 ```
