@@ -20,14 +20,14 @@ public class ReactiveMessagePublisher extends AbstractMessagePublisher<MessagePa
 
     @Inject
     @Channel("messages-out")
-    private Emitter<Message<String>> emitter;
+    private Emitter<String> emitter;
 
     @Override
     @Retry(maxRetries = 3, delay = 500)
     @CircuitBreaker(requestVolumeThreshold = 5, failureRatio = 0.5, delay = 10_000)
     public void publish(MessagePayload message) {
         try {
-            emitter.send(kafkaMessage(message)).toCompletableFuture().join();
+            emitter.send(kafkaMessage(message));
             logger().info(() -> "Published reactive message payload: " + message.toJson());
         } catch (Exception exception) {
             logger().log(Level.SEVERE, "Failed to publish reactive message payload", exception);
