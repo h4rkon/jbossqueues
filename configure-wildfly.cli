@@ -1,10 +1,7 @@
 embed-server --server-config=standalone.xml --std-out=echo
 batch
-/extension=org.wildfly.extension.microprofile.reactive-streams-operators-smallrye:add()
-/extension=org.wildfly.extension.microprofile.reactive-messaging-smallrye:add()
 /extension=org.wildfly.extension.microprofile.fault-tolerance-smallrye:add()
-/subsystem=microprofile-reactive-streams-operators-smallrye:add()
-/subsystem=microprofile-reactive-messaging-smallrye:add()
 /subsystem=microprofile-fault-tolerance-smallrye:add()
+/subsystem=undertow/server=default-server/http-listener=default:undefine-attribute(name=redirect-socket)
 run-batch
 stop-embedded-server
